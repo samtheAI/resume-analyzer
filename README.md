@@ -5,15 +5,29 @@ A Streamlit application that accepts one PDF, DOCX, or TXT resume and uses a Lan
 ## Architecture
 
 ```text
-Upload resume
+Upload resume in Streamlit
+app.py -> st.file_uploader()
     ↓
 Extract and validate text
+app.py -> extract_resume_text()
+document_loader.py -> _read_pdf() / _read_docx() / _read_txt()
+document_loader.py -> _normalize_text()
     ↓
-LangGraph: analyze_resume
+Start the LangGraph workflow
+resume_graph.py -> analyze_resume()
+resume_graph.py -> resume_graph.invoke()
     ↓
-LangGraph: validate_analysis
+Analyze the resume with Groq
+resume_graph.py -> _analyze_node()
+ChatGroq -> with_structured_output(ResumeAnalysis)
     ↓
-Display the structured report in Streamlit
+Validate the model response
+resume_graph.py -> _validate_node()
+    ↓
+Return ResumeAnalysis to app.py
+    ↓
+Display summary, score, pros, cons, and improvements
+app.py -> st.metric(), st.tabs(), and st.markdown()
 ```
 
 ## How the application works
