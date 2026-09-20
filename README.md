@@ -1,45 +1,39 @@
 # LangGraph Resume Analyzer
 
-A Streamlit application that accepts one PDF, DOCX, or TXT resume and uses a LangGraph workflow with Groq to produce an overall assessment, resume score, evidence-based pros and cons, prioritized improvements, and a candidate snapshot.
+A Streamlit application with three LangGraph-powered features:
+
+1. Analyze a resume and identify its pros, cons, score, and improvements.
+2. Compare a resume with a job description and calculate an explainable match score.
+3. Reassemble a truthful job-targeted resume using existing content, compare it with the original, and download a clean DOCX or TXT version.
 
 ## Architecture
 
 ```text
-Upload resume in Streamlit
-app.py -> st.file_uploader()
-    ↓
-Extract and validate text
-app.py -> extract_resume_text()
-document_loader.py -> _read_pdf() / _read_docx() / _read_txt()
-document_loader.py -> _normalize_text()
-    ↓
-Start the LangGraph workflow
-resume_graph.py -> analyze_resume()
-resume_graph.py -> resume_graph.invoke()
-    ↓
-Analyze the resume with Groq
-resume_graph.py -> _analyze_node()
-ChatGroq -> with_structured_output(ResumeAnalysis)
-    ↓
-Validate the model response
-resume_graph.py -> _validate_node()
-    ↓
-Return ResumeAnalysis to app.py
-    ↓
-Display summary, score, pros, cons, and improvements
-app.py -> st.metric(), st.tabs(), and st.markdown()
+Upload and extract resume -> extract_resume_text()
+    |
+    +--> Tab 1: analyze_resume()
+    |      resume_graph -> _analyze_node() -> _validate_analysis_node()
+    |
+    +--> Tab 2: match_resume_to_job()
+    |      match_graph -> _match_node() -> _validate_match_node()
+    |
+    +--> Tab 3: tailor_resume_to_job()
+           tailor_graph -> _tailor_node() -> _validate_tailor_node()
+                    |
+                    +--> build_comparison_html()
+                    +--> create_resume_docx()
 ```
 
 ## How the application works
 
-1. The user opens the Streamlit application and uploads one PDF, DOCX, or TXT resume.
-2. `app.py` checks the file type and size, then sends the uploaded bytes to `document_loader.py`.
-3. `document_loader.py` selects the appropriate reader, extracts the text, removes unnecessary whitespace, and checks that enough readable text was found.
-4. When the user clicks **Analyze resume**, `app.py` passes the extracted text to `analyze_resume()` in `resume_graph.py`.
-5. LangGraph places the resume text in its shared state and runs the `analyze_resume` node.
-6. The analysis node sends the resume and review instructions to the Groq model. Pydantic requires a structured response containing a summary, score, pros, cons, improvements, and candidate snapshot.
-7. The `validate_analysis` node checks that the important feedback sections are present.
-8. The completed analysis returns to Streamlit, which displays each section in a separate tab.
+1. The user selects one of the three feature tabs and uploads a PDF, DOCX, or TXT resume.
+2. `app.py` validates the file and calls `extract_resume_text()` in `document_loader.py`.
+3. For resume analysis, `analyze_resume()` runs the review graph and returns structured pros, cons, scoring, and improvements.
+4. For job matching, the user also supplies a job description. `match_resume_to_job()` returns a score, matched requirements, missing evidence, keyword gaps, and recommendations.
+5. For resume updating, `tailor_resume_to_job()` calls deterministic Python code that reorders existing skills and bullet points by job relevance. This feature makes no Groq API call and creates no new candidate claims.
+6. `build_comparison_html()` shows the original and updated resumes side by side. Removed or replaced text is red, while updated wording is green.
+7. `create_resume_docx()` produces a clean downloadable Word document without comparison colors or highlights. A clean TXT download is also available.
+8. Input fingerprints stored in Streamlit session state prevent an earlier result from being displayed for a different resume or job description.
 
 The Groq API is called only after the user clicks **Analyze resume**. The application does not permanently save the uploaded resume.
 
@@ -47,7 +41,8 @@ The Groq API is called only after the user clicks **Analyze resume**. The applic
 
 - `app.py` — Streamlit interface and result display.
 - `document_loader.py` — PDF, DOCX, and TXT text extraction.
-- `resume_graph.py` — Groq model, response structure, prompt, and LangGraph workflow.
+- `resume_graph.py` — three LangGraph workflows, prompts, and structured response models.
+- `resume_export.py` — highlighted comparison and clean DOCX generation.
 - `requirements.txt` — required Python packages.
 - `.env.example` — example Groq API-key configuration.
 
@@ -111,15 +106,16 @@ Streamlit normally opens `http://localhost:8501` automatically. If it does not, 
 
 ## Using the application
 
-1. Upload one text-based PDF, DOCX, or TXT resume.
-2. Review the extracted text shown by the application.
-3. Click **Analyze resume**.
-4. Wait for the Groq-powered LangGraph workflow to finish.
-5. Review the overall assessment, score, pros, cons, improvements, and candidate snapshot.
+1. Select **Resume analysis**, **Job match**, or **Update resume**.
+2. Upload one text-based PDF, DOCX, or TXT resume.
+3. In the second or third tab, paste a complete job description.
+4. Click the action button and wait for the selected LangGraph workflow.
+5. Review the AI output carefully. In the third tab, inspect highlighted changes before downloading the clean DOCX or TXT resume.
 
 ## Limitations
 
 - Scanned PDFs require OCR and are not supported in this first version.
-- The review is based only on the uploaded resume, without a job description.
+- Matching scores measure document alignment and are not hiring recommendations.
+- The tailored resume must be manually reviewed for factual accuracy.
 - The generated score describes resume quality; it is not a hiring decision.
 - AI-generated feedback should be reviewed by a person.
